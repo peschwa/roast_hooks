@@ -1,0 +1,35 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Cwd qw{getcwd chdir};
+
+my $dir = getcwd;
+
+my @git_status_lines = `git status`;
+my @changed_files;
+
+for my $statuslines (@git_status_lines) {
+    push @changed_files, $1 if $statuslines =~ /^\#\s*modified:\s*(.+)$/;
+}
+
+chdir "../..";
+my @outputs;
+my %plans_wrong;
+for my $file (@changed_files) {
+    my @output = `make t/spec/$file`;
+    for my $line (@output) {
+        if( $line =~ /Bad plan\./i ) {
+            $plans_wrong{$file} = $line;
+        }
+    }
+}
+
+chdir $dir;
+
+if(keys(%plans_wrong) > 0) {
+    for my $key (keys %plans_wrong) {
+        warn $key . ": " . $plans_wrong{$key} ."\n";
+    }
+    exit(1);
+}
