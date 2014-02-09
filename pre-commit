@@ -6,6 +6,8 @@ use Cwd qw{getcwd chdir};
 
 my $dir = getcwd;
 
+my $rakudodir = $dir =~ m!^(.+)/t/spec/.*$!;
+
 my @git_status_lines = `git status`;
 my @changed_files;
 
@@ -13,7 +15,7 @@ for my $statuslines (@git_status_lines) {
     push @changed_files, $1 if $statuslines =~ /^\#\s*modified:\s*(.+)$/;
 }
 
-chdir "../..";
+chdir $rakudodir;
 my @outputs;
 my %plans_wrong;
 for my $file (@changed_files) {
