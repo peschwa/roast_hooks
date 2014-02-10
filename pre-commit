@@ -23,11 +23,13 @@ for my $file (@changed_files) {
     my @output = `make t/spec/$file`;
     $plans_wrong{$file}{'plan'} = {};
     $plans_wrong{$file}{'not_ok'} = [];
-    $plans_wrong{$file}{$file . "exit"} = 0;
+    $plans_wrong{$file}{'exit'} = 0;
+    $plans_wrong{$file}{'died'} = 0;
     for my $line (@output) {
          $plans_wrong{$file}{'plan'} = $line if $line =~ /Bad plan\./i;
          push $plans_wrong{$file}{'not_ok'}, $line if $line =~ /^not ok.+$/;
-         $plans_wrong{$file . "exit"}++ if $line =~ /Non-zero exit status: (\d+)/;
+         $plans_wrong{$file}{'exit'}++ if $line =~ /Non-zero exit status: (\d+)/;
+         $plans_wrong{$file}{'died'}++ if $line =~ m!  in .+ at t/spec/$file:\d+!;
     }
 }
 
@@ -42,8 +44,13 @@ if(keys(%plans_wrong) > 0) {
             warn "Unstaging $file.";
             `git reset HEAD $file`;
             delete $plans_wrong{$file};
-        } elsif( $plans_wrong{$file . "exit"} != 0 ) {
+        } elsif( $plans_wrong{$file}{'exit'} != 0 ) {
             warn "Non-zero exit status on $file.";
+            warn "Unstaging $file.";
+            `git reset HEAD $file`;
+            delete $plans_wrong{$file};
+        } elsif( $plans_wrong{$file}{'died'} != 0 ) {
+            warn "It looks like $file died.";
             warn "Unstaging $file.";
             `git reset HEAD $file`;
             delete $plans_wrong{$file};
