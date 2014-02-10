@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use autodie qw{open};
 use Cwd qw{getcwd chdir};
 
 my $dir = getcwd;
@@ -12,7 +13,7 @@ my @git_status_lines = `git status`;
 my @changed_files;
 
 for my $statuslines (@git_status_lines) {
-    push @changed_files, $1 if $statuslines =~ /^\#\s*modified:\s*(.+)$/;
+    push @changed_files, $1 if $statuslines =~ /^\#\s*modified:\s+(.+)$/;
 }
 
 chdir $rakudodir;
@@ -21,9 +22,7 @@ my %plans_wrong;
 for my $file (@changed_files) {
     my @output = `make t/spec/$file`;
     for my $line (@output) {
-        if( $line =~ /Bad plan\./i ) {
-            $plans_wrong{$file} = $line;
-        }
+         $plans_wrong{$file} = $line if( $line =~ /Bad plan\./i );
     }
 }
 
@@ -31,7 +30,17 @@ chdir $dir;
 
 if(keys(%plans_wrong) > 0) {
     for my $key (keys %plans_wrong) {
-        warn $key . ": " . $plans_wrong{$key} ."\n";
+        warn "Adjusting wrong plans for $key...";
+        # check the order here!
+        my ($wrong, $right) = $plans_wrong{$key} =~ /(\d+).+(\d+)/;
+        open my $fhandle, '+<', $key;
+        my @lines = $fhandle;
+        for my $line (@lines) {
+            $line =~ s/$wrong/$right/ if $line eq $plans_wrong{$key};
+            print $fhandle $line;
+        }
+        close $fhandle;
+        warn "Restaging $key with an adjusted plan.";
+        `git add $key`;
     }
-    exit(1);
 }
