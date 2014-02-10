@@ -21,25 +21,52 @@ my @outputs;
 my %plans_wrong;
 for my $file (@changed_files) {
     my @output = `make t/spec/$file`;
+    $plans_wrong{$file}{'plan'} = {};
+    $plans_wrong{$file}{'not_ok'} = [];
+    $plans_wrong{$file}{$file . "exit"} = 0;
     for my $line (@output) {
-         $plans_wrong{$file} = $line if( $line =~ /Bad plan\./i );
+         $plans_wrong{$file}{'plan'} = $line if $line =~ /Bad plan\./i;
+         push $plans_wrong{$file}{'not_ok'}, $line if $line =~ /^not ok.+$/;
+         $plans_wrong{$file . "exit"}++ if $line =~ /Non-zero exit status: (\d+)/;
     }
 }
 
 chdir $dir;
 
+my $retVal = 0;
 if(keys(%plans_wrong) > 0) {
-    for my $key (keys %plans_wrong) {
-        warn "Adjusting wrong plans for $key...";
-        my ($wrong, $right) = $plans_wrong{$key} =~ /(\d+).+(\d+)/;
-        open my $fhandle, '+<', $key;
-        my @lines = $fhandle;
-        for my $line (@lines) {
-            $line =~ s/$wrong/$right/ if $line =~ /^plan \d+;$/;
-            print $fhandle $line;
+    for my $file (keys %plans_wrong) {
+        if( @{ $plans_wrong{$file}{'not_ok'} } > 0 ) {
+            warn "Failed tests in $file:";
+            warn "\t" . $_ for @{$plans_wrong{$file}{'not_ok'}};
+            warn "Unstaging $file.";
+            `git reset HEAD $file`;
+            delete $plans_wrong{$file};
+        } elsif( $plans_wrong{$file . "exit"} != 0 ) {
+            warn "Non-zero exit status on $file.";
+            warn "Unstaging $file.";
+            `git reset HEAD $file`;
+            delete $plans_wrong{$file};
+        } else {
+            warn "Adjusting wrong plans for $file...";
+            my ($wrong, $right) = $plans_wrong{$file} =~ /(\d+).+(\d+)/;
+            open my $fhandle, '+<', $file;
+            my @lines = $fhandle;
+            for my $line (@lines) {
+                $line =~ s/$wrong/$right/ if $line =~ /^plan \d+;$/;
+                print $fhandle $line;
+            }
+            close $fhandle;
+            warn "Restaging $file with an adjusted plan.";
+            `git add $file`;
         }
-        close $fhandle;
-        warn "Restaging $key with an adjusted plan.";
-        `git add $key`;
     }
 }
+
+if (keys(%plans_wrong) > 0) {
+    warn "Passing staged files present, committing.";
+} else {
+    warn "No passing or fixable files staged, aborting commit.";
+    exit(1);
+}
+
