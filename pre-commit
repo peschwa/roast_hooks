@@ -35,7 +35,7 @@ if(keys(%plans_wrong) > 0) {
         open my $fhandle, '+<', $key;
         my @lines = $fhandle;
         for my $line (@lines) {
-            $line =~ s/$wrong/$right/ if $line eq $plans_wrong{$key};
+            $line =~ s/$wrong/$right/ if $line =~ /^plan \d+;$/;
             print $fhandle $line;
         }
         close $fhandle;
