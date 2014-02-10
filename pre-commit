@@ -6,7 +6,7 @@ use Cwd qw{getcwd chdir};
 
 my $dir = getcwd;
 
-my $rakudodir = $dir =~ m!^(.+)/t/spec/.*$!;
+my $rakudodir = $1 if $dir =~ m!^(.+)/t/spec.*$!;
 
 my @git_status_lines = `git status`;
 my @changed_files;
