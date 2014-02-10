@@ -31,7 +31,6 @@ chdir $dir;
 if(keys(%plans_wrong) > 0) {
     for my $key (keys %plans_wrong) {
         warn "Adjusting wrong plans for $key...";
-        # check the order here!
         my ($wrong, $right) = $plans_wrong{$key} =~ /(\d+).+(\d+)/;
         open my $fhandle, '+<', $key;
         my @lines = $fhandle;
