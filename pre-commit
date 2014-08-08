@@ -13,7 +13,7 @@ my @git_status_lines = `git status`;
 my @changed_files;
 
 for my $statuslines (@git_status_lines) {
-    push @changed_files, $1 if $statuslines =~ /^\#\s*modified:\s+(.+)$/;
+    push @changed_files, $1 if $statuslines =~ /^\s*modified:\s+(.+)$/;
 }
 
 chdir $rakudodir;
@@ -21,13 +21,13 @@ my @outputs;
 my %plans_wrong;
 for my $file (@changed_files) {
     my @output = `make t/spec/$file`;
-    $plans_wrong{$file}{'plan'} = {};
+    $plans_wrong{$file}{'plan'} = 0;
     $plans_wrong{$file}{'not_ok'} = [];
     $plans_wrong{$file}{'exit'} = 0;
     $plans_wrong{$file}{'died'} = 0;
     for my $line (@output) {
          $plans_wrong{$file}{'plan'} = $line if $line =~ /Bad plan\./i;
-         push $plans_wrong{$file}{'not_ok'}, $line if $line =~ /^not ok.+$/;
+         push $plans_wrong{$file}{'not_ok'}, $line if $line =~ /^not ok.+$/ && $line !~ /TODO/;
          $plans_wrong{$file}{'exit'}++ if $line =~ /Non-zero exit status: (\d+)/;
          $plans_wrong{$file}{'died'}++ if $line =~ m!  in .+ at t/spec/$file:\d+!;
     }
@@ -54,24 +54,20 @@ if(keys(%plans_wrong) > 0) {
             warn "Unstaging $file.";
             `git reset HEAD $file`;
             delete $plans_wrong{$file};
+        } elsif( $plans_wrong{$file}{'plan'} != 0) {
+            warn "$file apparently has a wrong plan, please check and restage manually.";
+            warn "Unstaging $file.";
+            `git reset HEAD $file`;
+            delete $plans_wrong{$file};
         } else {
-            warn "Adjusting wrong plans for $file...";
-            my ($wrong, $right) = $plans_wrong{$file} =~ /(\d+).+(\d+)/;
-            open my $fhandle, '+<', $file;
-            my @lines = $fhandle;
-            for my $line (@lines) {
-                $line =~ s/$wrong/$right/ if $line =~ /^plan \d+;$/;
-                print $fhandle $line;
-            }
-            close $fhandle;
-            warn "Restaging $file with an adjusted plan.";
-            `git add $file`;
+            warn "$file seems fine.";
         }
     }
 }
 
 if (keys(%plans_wrong) > 0) {
     warn "Passing staged files present, committing.";
+    warn "Previous output should indicate files that didn't get commited.";
 } else {
     warn "No passing or fixable files staged, aborting commit.";
     exit(1);
