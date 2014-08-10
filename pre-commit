@@ -21,15 +21,20 @@ my @outputs;
 my %plans_wrong;
 for my $file (@changed_files) {
     my @output = `make t/spec/$file`;
-    $plans_wrong{$file}{'plan'} = 0;
+    $plans_wrong{$file}{'plan'} = "";
     $plans_wrong{$file}{'not_ok'} = [];
     $plans_wrong{$file}{'exit'} = 0;
     $plans_wrong{$file}{'died'} = 0;
     for my $line (@output) {
-         $plans_wrong{$file}{'plan'} = $line if $line =~ /Bad plan\./i;
-         push $plans_wrong{$file}{'not_ok'}, $line if $line =~ /^not ok.+$/ && $line !~ /TODO/;
-         $plans_wrong{$file}{'exit'}++ if $line =~ /Non-zero exit status: (\d+)/;
-         $plans_wrong{$file}{'died'}++ if $line =~ m!  in .+ at t/spec/$file:\d+!;
+         $plans_wrong{$file}{'plan'} = 
+            $line =~ /(You planned \d+ but ran \d+\.)/ 
+            if $line =~ /Bad plan\./;
+         push $plans_wrong{$file}{'not_ok'}, $line 
+            if $line =~ /^not ok.+$/ && $line !~ /TODO/;
+         $plans_wrong{$file}{'exit'}++ 
+            if $line =~ /Non-zero exit status: (\d+)/;
+         $plans_wrong{$file}{'died'}++ 
+            if $line =~ m!  in .+ at t/spec/$file:\d+!;
     }
 }
 
@@ -54,8 +59,9 @@ if(keys(%plans_wrong) > 0) {
             warn "Unstaging $file.";
             `git reset HEAD $file`;
             delete $plans_wrong{$file};
-        } elsif( $plans_wrong{$file}{'plan'} != 0) {
-            warn "$file apparently has a wrong plan, please check and restage manually.";
+        } elsif( $plans_wrong{$file}{'plan'} ne "") {
+            warn "$file apparently has a wrong plan (" 
+                . $plans_wrong{$file}{'plan'} . "), please check and restage.";
             warn "Unstaging $file.";
             `git reset HEAD $file`;
             delete $plans_wrong{$file};
